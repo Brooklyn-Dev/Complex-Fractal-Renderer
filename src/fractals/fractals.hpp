@@ -4,12 +4,11 @@
 #include "../complex/complex.hpp"
 #include "../colour/colour.hpp"
 
-const int MAX_ITERATIONS = 128;
-
-complex screenToFractal(int px, int py, int width, int height, double zoom, double offsetX, double offsetY);
-colour processMandelbrot(complex c, int maxIterations);
-colour processTricorn(complex c, int maxIterations);
-colour processBurningShip(complex c, int maxIterations);
-colour processNewtonFractal(complex z, int maxIterations);
+complex screenToFractal(unsigned int px, unsigned int py, unsigned int width, unsigned int height, double zoom, double offsetX, double offsetY);
+int calculateIterations(unsigned int numZooms, unsigned int baseIterations = 64);
+colour processMandelbrot(complex c, unsigned int maxIterations);
+colour processTricorn(complex c, unsigned int maxIterations);
+colour processBurningShip(complex c, unsigned int maxIterations);
+colour processNewtonFractal(complex z, unsigned int maxIterations);
 
 #endif

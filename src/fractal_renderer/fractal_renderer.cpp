@@ -1,6 +1,10 @@
 #include <functional>
 #include <thread>
 
+#include "imgui.h"
+#include "imgui_impl_sdl2.h"
+#include "imgui_impl_sdlrenderer2.h"
+
 #include "fractal_renderer.hpp"
 #include "../utils/math.hpp"
 
@@ -9,11 +13,15 @@ const float MAX_REAL = 2.5;
 const float MIN_IMAG = -2.5;
 const float MAX_IMAG = 2.5;
 
-const float MIN_ZOOM = 0.5;
+const double MIN_ZOOM = 1;
+const unsigned int ZOOM_SF = 4;
 
-FractalRenderer::FractalRenderer(int width, int height)
+const unsigned int BASE_ITERATIONS = 64;
+
+FractalRenderer::FractalRenderer(unsigned int width, unsigned int height)
     : winWidth(width), winHeight(height)
 {
+    // Setup SDL
     if (SDL_Init(SDL_INIT_VIDEO)) {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Could not initialise SDL: %s", SDL_GetError());
         exit(EXIT_FAILURE);
@@ -31,6 +39,17 @@ FractalRenderer::FractalRenderer(int width, int height)
         exit(EXIT_FAILURE);
     }
 
+    // Setup ImGui
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+
+    ImGui::StyleColorsDark();
+
+    ImGui_ImplSDL2_InitForSDLRenderer(window, renderer);
+    ImGui_ImplSDLRenderer2_Init(renderer);
+
+    // Bind number keys to fractals
     fractalMap[SDLK_1] = processMandelbrot;
     fractalMap[SDLK_2] = processTricorn;
     fractalMap[SDLK_3] = processBurningShip;
@@ -43,6 +62,10 @@ FractalRenderer::FractalRenderer(int width, int height)
 FractalRenderer::~FractalRenderer() {
     if (renderingTask.valid())
         renderingTask.wait();
+
+    ImGui_ImplSDLRenderer2_Shutdown();
+    ImGui_ImplSDL2_Shutdown();
+    ImGui::DestroyContext();
 
     if (cachedFrame) {
         SDL_DestroyTexture(cachedFrame);
@@ -85,14 +108,22 @@ void FractalRenderer::handleEvents() {
 
                 offsetX = fmin(fmax(c.re, MIN_REAL), MAX_REAL);
                 offsetY = fmin(fmax(c.im, MIN_IMAG), MAX_IMAG);
+
                 startAsyncRendering();
             }
             break;
 
         case SDL_MOUSEWHEEL:
             // Update zoom level based on direction of scroll
-            zoom *= (event.wheel.y > 0) ? 2.0 : 0.5;
-            zoom = fmax(zoom, MIN_ZOOM);
+            if (event.wheel.y > 0) {
+                zoom *= ZOOM_SF;
+                numZooms += 1;
+            }
+            else if (zoom > MIN_ZOOM) { 
+                zoom /= ZOOM_SF;
+                numZooms -= 1;
+            }
+
             startAsyncRendering();
             break;
 
@@ -119,6 +150,7 @@ void FractalRenderer::handleEvents() {
 
                 // Reset zoom and offset
                 zoom = INITIAL_ZOOM;
+                numZooms = 0;
                 offsetX = INITIAL_OFFSET_X;
                 offsetY = INITIAL_OFFSET_Y;
                 startAsyncRendering();
@@ -140,17 +172,20 @@ void FractalRenderer::startAsyncRendering() {
     int sectionWidth = winWidth / numThreads;
     int sectionHeight = winHeight / 2;
 
+    // Dynamically calculate the number of iterations based on the zoom level
+    int maxIterations = calculateIterations(numZooms, BASE_ITERATIONS);
+
     for (int i = 0; i < numThreads; ++i) {
         int startX = i * sectionWidth;
         int endX = (i + 1) * sectionWidth;
 
         // Each thread calculates and renders two vertical half-height tiles
-        threads.push_back(std::thread([this, startX, endX, sectionHeight]() {
+        threads.push_back(std::thread([this, startX, endX, sectionHeight, maxIterations]() {
             // Render top tile (first half of height)
             for (int x = startX; x < endX; x++) {
                 for (int y = 0; y < sectionHeight; y++) {
                     complex c = screenToFractal(x, y, winWidth, winHeight, zoom, offsetX, offsetY);
-                    colour col = fractalFunc(c, MAX_ITERATIONS);
+                    colour col = fractalFunc(c, maxIterations);
                     pixelBuffer[x][y] = col;
                 }
             }
@@ -172,7 +207,7 @@ void FractalRenderer::startAsyncRendering() {
             for (int x = startX; x < endX; x++) {
                 for (int y = sectionHeight; y < winHeight; y++) {
                     complex c = screenToFractal(x, y, winWidth, winHeight, zoom, offsetX, offsetY);
-                    colour col = fractalFunc(c, MAX_ITERATIONS);
+                    colour col = fractalFunc(c, maxIterations);
                     pixelBuffer[x][y] = col;
                 }
             }
@@ -204,8 +239,38 @@ void FractalRenderer::renderFrame() {
     if (!updateCachedFrame)
         return;
         
+    ImGui_ImplSDLRenderer2_NewFrame();
+    ImGui_ImplSDL2_NewFrame();
+    ImGui::NewFrame();
+
+    renderImGuiOverlay();
+
+    ImGui::Render();
+    ImGui_ImplSDLRenderer2_RenderDrawData(ImGui::GetDrawData());
+
     SDL_RenderPresent(renderer);
     updateCachedFrame = false;
+}
+
+void  FractalRenderer::renderImGuiOverlay()
+{
+    ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoDecoration |
+                                    ImGuiWindowFlags_AlwaysAutoResize |
+                                    ImGuiWindowFlags_NoSavedSettings |
+                                    ImGuiWindowFlags_NoFocusOnAppearing |
+                                    ImGuiWindowFlags_NoNav;
+
+    ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_Always);
+    ImGui::SetNextWindowBgAlpha(0.5f);
+
+    ImGui::Begin("ImGuiOverlay", nullptr, window_flags);
+
+    ImGui::SetWindowFontScale(1.25f);
+
+    ImGui::Text("Zoom: 10^%.5Lf", std::log10(zoom));
+    ImGui::Text("Centre: %.10Lf %s %.10Lf i\n", offsetX, -offsetY >= 0 ? "+" : "-" , fabs(offsetY));
+
+    ImGui::End();
 }
 
 void FractalRenderer::run() {

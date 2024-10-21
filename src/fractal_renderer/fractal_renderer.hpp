@@ -12,13 +12,13 @@
 
 #include "../fractals/fractals.hpp"
 
-const float INITIAL_ZOOM = 1.0;
+const unsigned int INITIAL_ZOOM = 1;
 const float INITIAL_OFFSET_X = 0.0;
 const float INITIAL_OFFSET_Y = 0.0;
 
 class FractalRenderer {
     public:
-        FractalRenderer(int width, int height);
+        FractalRenderer(unsigned int width, unsigned int height);
         ~FractalRenderer();
 
         void run();
@@ -27,15 +27,17 @@ class FractalRenderer {
         void handleEvents();
         void startAsyncRendering();
         void renderFrame();
+        void renderImGuiOverlay();
 
-        int winWidth;
-        int winHeight;
+        unsigned int winWidth;
+        unsigned int winHeight;
 
         SDL_Window* window = nullptr;
         SDL_Renderer* renderer = nullptr;
         SDL_Texture* cachedFrame = nullptr;
 
         double zoom = INITIAL_ZOOM;
+        unsigned int numZooms = 0;
         double offsetX = INITIAL_OFFSET_X;
         double offsetY = INITIAL_OFFSET_Y;
 

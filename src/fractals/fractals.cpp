@@ -1,14 +1,33 @@
+#include <algorithm>
+#include <cmath>
+
 #include "fractals.hpp"
 
-complex screenToFractal(int px, int py, int width, int height, double zoom, double offsetX, double offsetY) {
-    double minLength = fmin(width, height);
-    return complex {
-        (px - width / 2.0) / (0.5 * zoom * minLength) + offsetX,
-        (py - height / 2.0) / (0.5 * zoom * minLength) + offsetY
-    };
+complex screenToFractal(unsigned int px, unsigned int py, unsigned int width, unsigned int height, double zoom, double offsetX, double offsetY) {
+    double aspectRatio = width / (double)height;
+
+    double fractalWidth, fractalHeight;
+
+    if (width < height) {
+        fractalWidth = 4.0 / zoom;   // -2 to 2 for the real axis
+        fractalHeight = fractalWidth / aspectRatio;  // Scale imaginary axis proportionally
+    }
+    else {
+        fractalHeight = 4.0 / zoom;  // -2i to 2i for the imaginary axis
+        fractalWidth = fractalHeight * aspectRatio;  // Scale real axis proportionally
+    }
+
+    double real = (px - width / 2.0) * (fractalWidth / width) + offsetX;
+    double imag = (py - height / 2.0) * (fractalHeight / height) + offsetY;
+
+    return complex{ real, imag };
 }
 
-colour processMandelbrot(complex c, int maxIterations) {
+int calculateIterations(unsigned int numZooms, unsigned int baseIterations) {
+    return numZooms * baseIterations + baseIterations;
+}
+
+colour processMandelbrot(complex c, unsigned int maxIterations) {
     complex z = { 0, 0 }; // z_0 = 0
 
     for (int i = 0; i < maxIterations; i++) {
@@ -20,7 +39,7 @@ colour processMandelbrot(complex c, int maxIterations) {
     return BLACK;
 }
 
-colour processTricorn(complex c, int maxIterations) {
+colour processTricorn(complex c, unsigned int maxIterations) {
     complex z = { 0, 0 }; // z_0 = 0
 
     for (int i = 0; i < maxIterations; i++) {
@@ -33,7 +52,7 @@ colour processTricorn(complex c, int maxIterations) {
     return BLACK;
 }
 
-colour processBurningShip(complex c, int maxIterations) {
+colour processBurningShip(complex c, unsigned int maxIterations) {
     complex z = { 0, 0 }; // z_0 = 0
 
     for (int i = 0; i < maxIterations; i++) {
@@ -45,7 +64,7 @@ colour processBurningShip(complex c, int maxIterations) {
     return BLACK;
 }
 
-colour processNewtonFractal(complex z, int maxIterations) {
+colour processNewtonFractal(complex z, unsigned int maxIterations) {
     for (int i = 0; i < maxIterations; i++) {
         complex zSquared = z * z; // z^2
         complex zCubed = zSquared * z; // z^3
