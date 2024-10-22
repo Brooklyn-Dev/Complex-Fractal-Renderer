@@ -14,17 +14,33 @@
 
 ## [Mandelbrot set](https://en.wikipedia.org/wiki/Mandelbrot_set)
 
+### Iterative Formula
+
 ![Mandelbrot set formula](img/mandelbrot-set-formula.png)
 
+### Cardioid Check
+
+![Mandelbrot cardioid check formula](img/mandelbrot-cardioid-check-formula.png)
+
+### Period-2 Bulb Check
+
+![Mandelbrot bulb check formula](img/mandelbrot-bulb-check-formula.png)
+
 ## [Tricorn / Mandelbar set](<https://en.wikipedia.org/wiki/Tricorn_(mathematics)>)
+
+### Iterative Formula
 
 ![Tricorn formula](img/tricorn-formula.png)
 
 ## [Burning Ship fractal](https://en.wikipedia.org/wiki/Burning_Ship_fractal)
 
+### Iterative Formula
+
 ![Burning Ship fractal formula](img/burning-ship-fractal-formula.png)
 
 ## [Newton fractal](https://en.wikipedia.org/wiki/Newton_fractal)
+
+### Iterative Formula
 
 ![Netwon fractal formula](img/newton-fractal-formula.png)
 

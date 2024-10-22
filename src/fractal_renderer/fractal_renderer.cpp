@@ -19,7 +19,7 @@ const unsigned int ZOOM_SF = 4;
 const unsigned int BASE_ITERATIONS = 64;
 
 FractalRenderer::FractalRenderer(unsigned int width, unsigned int height)
-    : winWidth(width), winHeight(height)
+    : winWidth(width), winHeight(height), halfWinWidth(width / 2.0), halfWinHeight(height / 2.0)
 {
     // Setup SDL
     if (SDL_Init(SDL_INIT_VIDEO)) {
@@ -27,11 +27,13 @@ FractalRenderer::FractalRenderer(unsigned int width, unsigned int height)
         exit(EXIT_FAILURE);
     }
 
-    window = SDL_CreateWindow("Complex Fractal Renderer", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, winWidth, winHeight, SDL_WINDOW_SHOWN);
+    Uint32 windowFlags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_SHOWN;
+    window = SDL_CreateWindow("Complex Fractal Renderer", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, winWidth, winHeight, windowFlags);
     if (window == nullptr) {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Couldn't create window: %s", SDL_GetError());
         exit(EXIT_FAILURE);
     }
+    updateFractalSize();
 
     renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     if (renderer == nullptr) {
@@ -104,7 +106,7 @@ void FractalRenderer::handleEvents() {
                 // Set centre of screen at the point clicked
                 SDL_GetMouseState(&mx, &my);
 
-                complex c = screenToFractal(mx, my, winWidth, winHeight, zoom, offsetX, offsetY);
+                complex c = screenToFractal(mx, my, halfWinWidth, halfWinHeight, fractalWidthRatio, fractalHeightRatio, offsetX, offsetY);
 
                 offsetX = fmin(fmax(c.re, MIN_REAL), MAX_REAL);
                 offsetY = fmin(fmax(c.im, MIN_IMAG), MAX_IMAG);
@@ -124,6 +126,7 @@ void FractalRenderer::handleEvents() {
                 numZooms -= 1;
             }
 
+            updateFractalSize();
             startAsyncRendering();
             break;
 
@@ -153,8 +156,17 @@ void FractalRenderer::handleEvents() {
                 numZooms = 0;
                 offsetX = INITIAL_OFFSET_X;
                 offsetY = INITIAL_OFFSET_Y;
+
+                updateFractalSize();
                 startAsyncRendering();
             }
+            break;
+
+        case SDL_WINDOWEVENT:
+            if (event.window.event == SDL_WINDOWEVENT_RESIZED) {
+                setWinSize(event.window.data1, event.window.data2);
+            }
+
             break;
 
         default:
@@ -184,7 +196,7 @@ void FractalRenderer::startAsyncRendering() {
             // Render top tile (first half of height)
             for (int x = startX; x < endX; x++) {
                 for (int y = 0; y < sectionHeight; y++) {
-                    complex c = screenToFractal(x, y, winWidth, winHeight, zoom, offsetX, offsetY);
+                    complex c = screenToFractal(x, y, halfWinWidth, halfWinHeight, fractalWidthRatio, fractalHeightRatio, offsetX, offsetY);
                     colour col = fractalFunc(c, maxIterations);
                     pixelBuffer[x][y] = col;
                 }
@@ -206,7 +218,7 @@ void FractalRenderer::startAsyncRendering() {
             // Render bottom tile (second half of height)
             for (int x = startX; x < endX; x++) {
                 for (int y = sectionHeight; y < winHeight; y++) {
-                    complex c = screenToFractal(x, y, winWidth, winHeight, zoom, offsetX, offsetY);
+                    complex c = screenToFractal(x, y, halfWinWidth, halfWinHeight, fractalWidthRatio, fractalHeightRatio, offsetX, offsetY);
                     colour col = fractalFunc(c, maxIterations);
                     pixelBuffer[x][y] = col;
                 }
@@ -233,6 +245,41 @@ void FractalRenderer::startAsyncRendering() {
 
     recalculating = false;
     updateCachedFrame = true;
+}
+
+void FractalRenderer::setWinSize(unsigned int width, unsigned int height) {
+    if (width == winWidth && height == winHeight)
+        return;
+
+    winWidth = width;
+    winHeight = height;
+    halfWinWidth = winWidth / 2.0;
+    halfWinHeight = winHeight / 2.0;
+
+    SDL_SetWindowSize(window, winWidth, winHeight);
+
+    SDL_RenderSetLogicalSize(renderer, winWidth, winHeight);
+
+    pixelBuffer.resize(winWidth, std::vector<colour>(winHeight));
+
+    updateFractalSize();
+    startAsyncRendering();
+}
+
+void FractalRenderer::updateFractalSize() {
+    double aspectRatio = winWidth / (double)winHeight;
+
+    if (winWidth < winHeight) {
+        fractalWidth = 4.0 / zoom;   // -2 to 2 for the real axis
+        fractalHeight = fractalWidth / aspectRatio;  // Scale imaginary axis proportionally
+    }
+    else {
+        fractalHeight = 4.0 / zoom;  // -2i to 2i for the imaginary axis
+        fractalWidth = fractalHeight * aspectRatio;  // Scale real axis proportionally
+    }
+
+    fractalWidthRatio = fractalWidth / winWidth;
+    fractalHeightRatio = fractalHeight / winHeight;
 }
 
 void FractalRenderer::renderFrame() {
@@ -277,6 +324,8 @@ void FractalRenderer::run() {
     pixelBuffer.resize(winWidth, std::vector<colour>(winHeight));
 
     startAsyncRendering();
+
+    renderFrame();
 
     while (running) {
         handleEvents();

@@ -25,12 +25,20 @@ class FractalRenderer {
 
     private:
         void handleEvents();
+        void setWinSize(unsigned int width, unsigned int height);
+        void updateFractalSize();
         void startAsyncRendering();
         void renderFrame();
         void renderImGuiOverlay();
 
         unsigned int winWidth;
         unsigned int winHeight;
+        float halfWinWidth;
+        float halfWinHeight;
+        double fractalWidth;
+        double fractalHeight;
+        double fractalWidthRatio;
+        double fractalHeightRatio;
 
         SDL_Window* window = nullptr;
         SDL_Renderer* renderer = nullptr;
