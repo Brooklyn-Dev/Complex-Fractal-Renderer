@@ -27,9 +27,14 @@ class FractalRenderer {
         void handleEvents();
         void setWinSize(unsigned int width, unsigned int height);
         void updateFractalSize();
+        void resetFractal();
+        void setOffset(long double real, long double imag);
+        void setZoom(long double zoomPower);
         void startAsyncRendering();
         void renderFrame();
-        void renderImGuiOverlay();
+        void renderFractalInfo();
+        void renderFractalControls();
+        void renderProgressBar();
 
         unsigned int winWidth;
         unsigned int winHeight;
@@ -42,25 +47,27 @@ class FractalRenderer {
 
         SDL_Window* window = nullptr;
         SDL_Renderer* renderer = nullptr;
-        SDL_Texture* cachedFrame = nullptr;
+        SDL_Texture* fractalTexture = nullptr;
+        SDL_Texture* fractalTextureBuffer = nullptr;
 
         double zoom = INITIAL_ZOOM;
-        unsigned int numZooms = 0;
-        double offsetX = INITIAL_OFFSET_X;
-        double offsetY = INITIAL_OFFSET_Y;
+        long double numZooms = 0.0;
+        long double offsetX = INITIAL_OFFSET_X;
+        long double offsetY = INITIAL_OFFSET_Y;
+        unsigned int currentMaxIterations;
 
         bool running = true;
-        bool recalculating = false;
-        bool updateCachedFrame = false;
 
+        std::atomic<bool> recalculating = false;
+        std::atomic<bool> cancelRender = false;
         std::future<void> renderingTask;
-        std::atomic<int> completedThreads;
-        std::vector<std::vector<colour>> pixelBuffer;
-        std::mutex bufferMutex;
-        std::condition_variable bufferCond;
+        std::mutex renderMutex;
+        std::vector<unsigned int> pixelDataBuffer;
+        std::atomic<unsigned int> renderProgress;
+        unsigned int renderMaxProgress;
 
-        std::function<colour(complex, int)> fractalFunc;
-        std::unordered_map<SDL_Keycode, std::function<colour(complex, int) >> fractalMap;
+        std::function<colour(complex, unsigned int)> fractalFunc;
+        std::unordered_map<SDL_Keycode, std::function<colour(complex, unsigned int) >> fractalMap;
         SDL_Keycode curFractalFuncKey;
 };
 

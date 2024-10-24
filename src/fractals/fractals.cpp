@@ -18,8 +18,8 @@ complex screenToFractal(
     return complex{ real, imag };
 }
 
-int calculateIterations(unsigned int numZooms, unsigned int baseIterations) {
-    return numZooms * baseIterations + baseIterations;
+int calculateIterations(unsigned int numZooms, unsigned int initialIterations, unsigned int iterationIncrement) {
+    return numZooms * iterationIncrement + initialIterations;
 }
 
 bool checkPeriodicity(const complex& z, const complex& prevZ) {

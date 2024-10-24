@@ -10,7 +10,7 @@ complex screenToFractal(
 	double fractalWidthRatio, double fractalHeightRatio,
 	double offsetX, double offsetY
 );
-int calculateIterations(unsigned int numZooms, unsigned int baseIterations = 64);
+int calculateIterations(unsigned int numZooms, unsigned int initialIterations, unsigned int iterationIncrement);
 bool checkPeriodicity(const complex& z, const complex& prevZ);
 colour processMandelbrot(complex c, unsigned int maxIterations);
 colour processTricorn(complex c, unsigned int maxIterations);
