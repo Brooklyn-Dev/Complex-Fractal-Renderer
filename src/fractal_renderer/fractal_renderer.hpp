@@ -11,6 +11,7 @@
 #include <SDL2/SDL.h>
 
 #include "../fractals/fractals.hpp"
+#include "../fractals/fractal_option.hpp"
 
 const unsigned int INITIAL_ZOOM = 1;
 const float INITIAL_OFFSET_X = 0.0;
@@ -25,15 +26,21 @@ class FractalRenderer {
 
     private:
         void handleEvents();
+
         void setWinSize(unsigned int width, unsigned int height);
         void updateFractalSize();
         void resetFractal();
         void setOffset(long double real, long double imag);
         void setZoom(long double zoomPower);
+        void setFractal(unsigned int fractalIndex);
+
         void startAsyncRendering();
+        void renderTrajectory(std::vector<complex> trajectoryPoints);
         void renderFrame();
+
         void renderFractalInfo();
         void renderFractalControls();
+        void renderFractalSelector();
         void renderProgressBar();
 
         unsigned int winWidth;
@@ -54,11 +61,17 @@ class FractalRenderer {
         long double numZooms = 0.0;
         long double offsetX = INITIAL_OFFSET_X;
         long double offsetY = INITIAL_OFFSET_Y;
-        unsigned int currentMaxIterations;
+        unsigned int curMaxIterations;
+
+        SDL_Texture* trajectoryTexture = nullptr;
+        bool recalculateTrajectory = false;
+        bool isRecalculatingTrajectory = false;
+        bool destroyTrajectory = false;
 
         bool running = true;
+        bool uiVisible = true;
 
-        std::atomic<bool> recalculating = false;
+        std::atomic<bool> isRecalculatingFractal = false;
         std::atomic<bool> cancelRender = false;
         std::future<void> renderingTask;
         std::mutex renderMutex;
@@ -66,9 +79,8 @@ class FractalRenderer {
         std::atomic<unsigned int> renderProgress;
         unsigned int renderMaxProgress;
 
-        std::function<colour(complex, unsigned int)> fractalFunc;
-        std::unordered_map<SDL_Keycode, std::function<colour(complex, unsigned int) >> fractalMap;
-        SDL_Keycode curFractalFuncKey;
+        std::vector<fractalOption> fractalOptions;
+        unsigned int curFractalIdx;
 };
 
 #endif

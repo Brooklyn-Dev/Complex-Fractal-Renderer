@@ -2,13 +2,13 @@
 #define COLOUR_H
 
 typedef struct colour {
-    int r;
-    int g;
-    int b;
+    unsigned char r;
+    unsigned char g;
+    unsigned char b;
 };
 
 colour colourLerp(colour a, colour b, float t);
-colour colourGradient(int iteration, int maxIterations);
+colour colourGradient(unsigned int iteration, unsigned int maxIterations);
 
 const colour BLACK = colour{ 0, 0, 0 };
 

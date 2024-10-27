@@ -5,7 +5,9 @@
 ## Controls
 
 -   Left Mouse - Click to offset view
+-   Right Mouse - Click to see the trajectory of a point
 -   Scroll Wheel - Zoom in and out
+-   TAB - Toggle UI
 -   R - Reset view
 -   1 - Mandelbrot set
 -   2 - Tricorn / Mandelbar set
@@ -43,6 +45,10 @@
 ### Iterative Formula
 
 ![Netwon fractal formula](img/newton-fractal-formula.png)
+
+### Roots
+
+![Netwon fractal roots](img/newton-fractal-roots.png)
 
 ## Find a bug?
 

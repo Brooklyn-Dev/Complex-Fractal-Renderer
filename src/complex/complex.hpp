@@ -8,14 +8,28 @@ typedef struct complex {
     long double im;
 
     complex operator+(const complex& w) const;
+    complex& operator+=(const complex& w);
+
     complex operator-(const complex& w) const;
+    complex& operator-=(const complex& w);
+
     complex operator*(const complex& w) const;
+    complex& operator*=(const complex& w);
+
     complex operator/(const complex& w) const;
+    complex& operator/=(const complex& w);
 
     complex operator+(long double scalar) const;
+    complex& operator+=(long double scalar);
+
     complex operator-(long double scalar) const;
+    complex& operator-=(long double scalar);
+
     complex operator*(long double scalar) const;
+    complex& operator*=(long double scalar);
+
     complex operator/(long double scalar) const;
+    complex& operator/=(long double scalar);
 };
 
 complex complexConj(const complex& z);

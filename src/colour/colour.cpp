@@ -2,6 +2,18 @@
 
 #include "colour.hpp"
 
+// Linear interpolation between 2 colours
+colour colourLerp(colour a, colour b, float t) {
+    if (t > 1.0f) t = 1.0f;
+    if (t < 0.0f) t = 0.0f;
+
+    return colour{
+        (unsigned char)(a.r + (b.r - a.r) * t),
+        (unsigned char)(a.g + (b.g - a.g) * t),
+        (unsigned char)(a.b + (b.b - a.b) * t)
+    };
+}
+
 #define GRADIENT_STOP_COUNT 5
 const colour GRADIENT_STOPS[GRADIENT_STOP_COUNT] = {
     { 50, 50, 255 }, // Blue
@@ -11,20 +23,8 @@ const colour GRADIENT_STOPS[GRADIENT_STOP_COUNT] = {
     { 50, 50, 255 } // Loop back to Blue
 };
 
-// Linear interpolation between 2 colours
-colour colourLerp(colour a, colour b, float t) {
-    if (t > 1.0f) t = 1.0f;
-    if (t < 0.0f) t = 0.0f;
-
-    return colour {
-        (int) (a.r + (b.r - a.r) * t),
-        (int) (a.g + (b.g - a.g) * t),
-        (int) (a.b + (b.b - a.b) * t)
-    };
-}
-
 // Get a colour from the gradient based on the iteration count
-colour colourGradient(int iteration, int maxIterations) {
+colour colourGradient(unsigned int iteration, unsigned int maxIterations) {
     int num_stops = GRADIENT_STOP_COUNT - 1;
 
     // Normalise the iteration count within the gradient range

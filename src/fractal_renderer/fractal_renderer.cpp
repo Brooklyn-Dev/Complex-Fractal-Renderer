@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <functional>
 #include <thread>
 
@@ -56,14 +57,14 @@ FractalRenderer::FractalRenderer(unsigned int width, unsigned int height)
     ImGui_ImplSDL2_InitForSDLRenderer(window, renderer);
     ImGui_ImplSDLRenderer2_Init(renderer);
 
-    // Bind number keys to fractals
-    fractalMap[SDLK_1] = processMandelbrot;
-    fractalMap[SDLK_2] = processTricorn;
-    fractalMap[SDLK_3] = processBurningShip;
-    fractalMap[SDLK_4] = processNewtonFractal;
+    fractalOptions = {
+        { "Mandelbrot Set", SDLK_1, processMandelbrot, calcTrajectoryMandelbrot },
+        { "Tricorn", SDLK_2, processTricorn, calcTrajectoryTricorn },
+        { "Burning Ship", SDLK_3, processBurningShip, calcTrajectoryBurningShip },
+        { "Newton Fractal", SDLK_4, processNewtonFractal, calcTrajectoryNewtonFractal }
+    };
 
-    curFractalFuncKey = SDLK_1;
-    fractalFunc = fractalMap[curFractalFuncKey];
+    curFractalIdx = 0;
 }
 
 FractalRenderer::~FractalRenderer() {
@@ -83,7 +84,22 @@ FractalRenderer::~FractalRenderer() {
         SDL_DestroyWindow(window);
         window = nullptr;
     }
-    
+
+    if (fractalTexture) {
+        SDL_DestroyTexture(fractalTexture);
+        fractalTexture = nullptr;
+    }
+
+    if (fractalTextureBuffer) {
+        SDL_DestroyTexture(fractalTextureBuffer);
+        fractalTextureBuffer = nullptr;
+    }
+
+    if (trajectoryTexture) {
+        SDL_DestroyTexture(trajectoryTexture);
+        trajectoryTexture = nullptr;
+    }
+
     pixelDataBuffer.clear();
 
     SDL_Quit();
@@ -108,7 +124,10 @@ void FractalRenderer::handleEvents() {
                 break;
 
             case SDL_MOUSEBUTTONDOWN:
-                if (!mouseInImGui && event.button.button == SDL_BUTTON(SDL_BUTTON_LEFT)) {
+                if (mouseInImGui)
+                    break;
+
+                if (event.button.button == SDL_BUTTON_LEFT) {
                     // Set centre of screen at the point clicked
                     SDL_GetMouseState(&mx, &my);
 
@@ -116,6 +135,19 @@ void FractalRenderer::handleEvents() {
                     setOffset(c.re, c.im);
 
                     startAsyncRendering();
+                }
+                else if (event.button.button == SDL_BUTTON_RIGHT) {
+                    if (isRecalculatingFractal)
+                        break;
+
+                    // Render the trajectory of the point clicked
+                    SDL_GetMouseState(&mx, &my);
+
+                    complex c = screenToFractal(mx, my, halfWinWidth, halfWinHeight, fractalWidthRatio, fractalHeightRatio, offsetX, offsetY);
+
+                    auto trajectoryFuncCopy = fractalOptions[curFractalIdx].trajectoryFunc;
+                    std::vector<complex> trajectoryPoints = trajectoryFuncCopy(c, curMaxIterations);
+                    renderTrajectory(trajectoryPoints);
                 }
                 break;
 
@@ -144,18 +176,23 @@ void FractalRenderer::handleEvents() {
                         // Quit
                         running = false;
                     }
-                    else if (fractalMap.find(eventKey) != fractalMap.end()) {
-                        if (eventKey == curFractalFuncKey)
-                            break;
-
-                        // Set the fractal function
-                        fractalFunc = fractalMap[eventKey];
-                        curFractalFuncKey = eventKey;
-                        startAsyncRendering();
+                    else if (eventKey == SDLK_TAB) {
+                        // Toggle UI
+                        uiVisible = !uiVisible;
                     }
                     else if (eventKey == SDLK_r) {
                         // Reset zoom and offset
                         resetFractal();
+                    }
+                    else {
+                        for (int i = 0; i < fractalOptions.size(); i++)
+                        {
+                            if (eventKey == fractalOptions[i].key) {
+                                // Change selected fractal
+                                setFractal(i);
+                                break;
+                            }
+                        }
                     }
                 }
                 break;
@@ -175,14 +212,15 @@ void FractalRenderer::handleEvents() {
 }
 
 void FractalRenderer::startAsyncRendering() {
-    if (recalculating) {
+    if (isRecalculatingFractal) {
         cancelRender = true;
         if (renderingTask.valid())
             renderingTask.wait();
+
         cancelRender = false;
     }
   
-    recalculating = true;
+    isRecalculatingFractal = true;
     renderProgress = 0;
     renderMaxProgress = winWidth;
 
@@ -191,31 +229,33 @@ void FractalRenderer::startAsyncRendering() {
 
     fractalTextureBuffer = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING, winWidth, winHeight);
 
-    auto fractalFuncCopy = fractalFunc;
+    auto fractalFuncCopy = fractalOptions[curFractalIdx].func;
 
     renderingTask = std::async(std::launch::async, [this, fractalFuncCopy]() {
         int numThreads = std::thread::hardware_concurrency();
         std::vector<std::thread> threads;
         int sectionWidth = winWidth / numThreads;
 
-        currentMaxIterations = calculateIterations(numZooms, INITIAL_ITERATIONS, ITERATION_INCREMENT);
+        curMaxIterations = calculateIterations(numZooms, INITIAL_ITERATIONS, ITERATION_INCREMENT);
+
+        SDL_PixelFormat* pixelFormat = SDL_AllocFormat(SDL_PIXELFORMAT_RGBA8888);
 
         // Create a thread for each vertical slice
         for (int i = 0; i < numThreads; ++i) {
             int startX = i * sectionWidth;
             int endX = (i == numThreads - 1) ? winWidth : (i + 1) * sectionWidth;
 
-            threads.emplace_back(std::thread([this, startX, endX, fractalFuncCopy]() {
+            threads.emplace_back(std::thread([this, startX, endX, fractalFuncCopy, pixelFormat]() {
                 for (int x = startX; x < endX; x++) {
                     for (int y = 0; y < winHeight; y++) {
                         if (cancelRender)
                             return;
 
                         complex c = screenToFractal(x, y, halfWinWidth, halfWinHeight, fractalWidthRatio, fractalHeightRatio, offsetX, offsetY);
-                        colour col = fractalFuncCopy(c, currentMaxIterations);
+                        colour col = fractalFuncCopy(c, curMaxIterations);
 
                         std::lock_guard<std::mutex> lock(renderMutex);
-                        pixelDataBuffer[y * winWidth + x] = SDL_MapRGBA(SDL_AllocFormat(SDL_PIXELFORMAT_RGBA8888), col.r, col.g, col.b, 255);
+                        pixelDataBuffer[(long long int)y * winWidth + x] = SDL_MapRGB(pixelFormat, col.r, col.g, col.b);
                     }
 
                     renderProgress++;
@@ -227,6 +267,8 @@ void FractalRenderer::startAsyncRendering() {
         for (auto& t : threads)
             if (t.joinable())
                 t.join();
+
+        SDL_FreeFormat(pixelFormat);
 
         if (cancelRender)
             return;
@@ -246,7 +288,7 @@ void FractalRenderer::startAsyncRendering() {
             std::swap(fractalTexture, fractalTextureBuffer);
         }
 
-        recalculating = false;
+        isRecalculatingFractal = false;
     });
 }
 
@@ -266,6 +308,8 @@ void FractalRenderer::setWinSize(unsigned int width, unsigned int height) {
     SDL_RenderPresent(renderer);
 
     pixelDataBuffer.resize(winWidth * winHeight, 0);
+
+    destroyTrajectory = true;
 
     updateFractalSize();
     startAsyncRendering();
@@ -296,6 +340,8 @@ void FractalRenderer::resetFractal() {
     offsetX = INITIAL_OFFSET_X;
     offsetY = INITIAL_OFFSET_Y;
 
+    destroyTrajectory = true;
+
     updateFractalSize();
     startAsyncRendering();
 }
@@ -303,6 +349,8 @@ void FractalRenderer::resetFractal() {
 void FractalRenderer::setOffset(long double real, long double imag) {
     offsetX = fmin(fmax(real, MIN_REAL), MAX_REAL);
     offsetY = fmin(fmax(imag, MIN_IMAG), MAX_IMAG);
+
+    destroyTrajectory = true;
 }
 
 void FractalRenderer::setZoom(long double zoomPower) {
@@ -313,7 +361,92 @@ void FractalRenderer::setZoom(long double zoomPower) {
     zoom = pow(10.0, zoomPower);
     numZooms = zoomPower / std::log10(2.0);
 
+    destroyTrajectory = true;
+
     updateFractalSize();
+}
+
+void FractalRenderer::setFractal(unsigned int fractalIndex) {
+    if (fractalIndex == curFractalIdx)
+        return;
+
+    curFractalIdx = fractalIndex;
+    destroyTrajectory = true;
+
+    startAsyncRendering();
+}
+
+void FractalRenderer::renderTrajectory(std::vector<complex> trajectoryPoints) {
+    if (trajectoryPoints.empty())
+        return;
+
+    isRecalculatingTrajectory = true;
+
+    // Trajectory texture setup
+    if (trajectoryTexture)
+        SDL_DestroyTexture(trajectoryTexture);
+
+    trajectoryTexture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, winWidth, winHeight);
+    SDL_SetTextureBlendMode(trajectoryTexture, SDL_BLENDMODE_BLEND);
+    
+    SDL_SetRenderTarget(renderer, trajectoryTexture);
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
+    SDL_RenderClear(renderer);
+
+    unsigned char pointSize = 4;
+    float halfPointSize = pointSize / 2.0f;
+
+    // Get start point
+    auto curPoint = fractalToScreen(trajectoryPoints[0], halfWinWidth, halfWinHeight, fractalWidthRatio, fractalHeightRatio, offsetX, offsetY);
+    double startX = curPoint.first;
+    double startY = curPoint.second;
+
+    std::vector<SDL_Rect> pointRects;
+    std::vector<SDL_Point> linePoints = { SDL_Point{ static_cast<int>(startX), static_cast<int>(startY) } };
+
+    for (int i = 1; i < trajectoryPoints.size(); i++) {
+        // Calculate pixel coordinates
+        int prevX = static_cast<int>(curPoint.first);
+        int prevY = static_cast<int>(curPoint.second);
+
+        curPoint = fractalToScreen(trajectoryPoints[i], halfWinWidth, halfWinHeight, fractalWidthRatio, fractalHeightRatio, offsetX, offsetY);
+        int curX = static_cast<int>(curPoint.first);
+        int curY = static_cast<int>(curPoint.second);
+
+        // Clamp current point
+        int clampedX = std::clamp<int>(curX, 0, winWidth);
+        int clampedY = std::clamp<int>(curY, 0, winHeight);
+        bool clamped = (clampedX != curX) || (clampedY != curY);
+
+        linePoints.push_back(SDL_Point{ clampedX, clampedY });
+
+        // Calculate point rect
+        if (!clamped) {
+            SDL_Rect curRect = { static_cast<int>(curX - halfPointSize), static_cast<int>(curY - halfPointSize), pointSize, pointSize };
+            pointRects.push_back(curRect);
+        }
+    }
+
+    // Render lines
+    if (linePoints.size() > 1) {
+        SDL_Color lineColour = { 160, 0, 160, 255 };
+        SDL_SetRenderDrawColor(renderer, lineColour.r, lineColour.g, lineColour.b, lineColour.a);
+        SDL_RenderDrawLines(renderer, linePoints.data(), linePoints.size());
+    }
+
+    // Render points
+    SDL_Color pointColour = { 255, 255, 255, 255 };
+    SDL_SetRenderDrawColor(renderer, pointColour.r, pointColour.g, pointColour.b, pointColour.a);
+
+    for (const SDL_Rect& rect : pointRects)
+        SDL_RenderFillRect(renderer, &rect);
+
+    // Render start point
+    SDL_Rect startRect = { startX - halfPointSize, startY - halfPointSize, pointSize, pointSize };
+    SDL_RenderFillRect(renderer, &startRect);
+
+    SDL_SetRenderTarget(renderer, nullptr);
+    isRecalculatingTrajectory = false;
 }
 
 void FractalRenderer::renderFrame() {
@@ -323,16 +456,22 @@ void FractalRenderer::renderFrame() {
     if (fractalTexture != nullptr)
         SDL_RenderCopy(renderer, fractalTexture, nullptr, nullptr);
 
-    ImGui_ImplSDLRenderer2_NewFrame();
-    ImGui_ImplSDL2_NewFrame();
-    ImGui::NewFrame();
+    if (trajectoryTexture != nullptr)
+        SDL_RenderCopy(renderer, trajectoryTexture, nullptr, nullptr);
 
-    renderFractalInfo();
-    renderFractalControls();
-    renderProgressBar();
+    if (uiVisible) {
+        ImGui_ImplSDLRenderer2_NewFrame();
+        ImGui_ImplSDL2_NewFrame();
+        ImGui::NewFrame();
 
-    ImGui::Render();
-    ImGui_ImplSDLRenderer2_RenderDrawData(ImGui::GetDrawData());
+        renderFractalInfo();
+        renderFractalControls();
+        renderFractalSelector();
+        renderProgressBar();
+
+        ImGui::Render();
+        ImGui_ImplSDLRenderer2_RenderDrawData(ImGui::GetDrawData());
+    }
 
     SDL_RenderPresent(renderer);
 }
@@ -349,8 +488,8 @@ void  FractalRenderer::renderFractalInfo() {
     ImGui::Begin("Fractal Info", nullptr, windowFlags);
     ImGui::Text("Zoom: 10^%.5Lf", std::log10(zoom));
     ImGui::Text("Real: %.10Lf", offsetX);
-    ImGui::Text("Imag: %.10Lf", -offsetY);
-    ImGui::Text("Iterations: %i", currentMaxIterations);
+    ImGui::Text("Imag: %.10Lf", offsetY);
+    ImGui::Text("Iterations: %i", curMaxIterations);
     ImGui::End();
 }
 
@@ -400,7 +539,7 @@ void  FractalRenderer::renderFractalControls() {
     ImGui::End();
 }
 
-void  FractalRenderer::renderProgressBar() {
+void  FractalRenderer::renderFractalSelector() {
     ImGuiWindowFlags windowFlags =
         ImGuiWindowFlags_AlwaysAutoResize |
         ImGuiWindowFlags_NoSavedSettings |
@@ -408,6 +547,29 @@ void  FractalRenderer::renderProgressBar() {
         ImGuiWindowFlags_NoNav;
 
     ImGui::SetNextWindowPos(ImVec2(366, 10), ImGuiCond_Once);
+
+    ImGui::Begin("Fractal Selector", nullptr, windowFlags);
+
+    if (ImGui::BeginCombo("##Select Fractal", fractalOptions[curFractalIdx].name.c_str())) {
+        for (int i = 0; i < fractalOptions.size(); i++) {
+            bool isSelected = curFractalIdx == i;
+            if (ImGui::Selectable(fractalOptions[i].name.c_str(), isSelected))
+                setFractal(i);    
+        }
+        ImGui::EndCombo();
+    }
+
+    ImGui::End();
+}
+
+void  FractalRenderer::renderProgressBar() {
+    ImGuiWindowFlags windowFlags =
+        ImGuiWindowFlags_AlwaysAutoResize |
+        ImGuiWindowFlags_NoSavedSettings |
+        ImGuiWindowFlags_NoFocusOnAppearing |
+        ImGuiWindowFlags_NoNav;
+
+    ImGui::SetNextWindowPos(ImVec2(604, 10), ImGuiCond_Once);
 
     ImGui::Begin("Render Progress", nullptr, windowFlags);
     float progress = static_cast<float>(renderProgress) / renderMaxProgress;
@@ -422,6 +584,15 @@ void FractalRenderer::run() {
 
     while (running) {
         handleEvents();
+
+        if (destroyTrajectory && !isRecalculatingTrajectory) {
+            if (trajectoryTexture) {
+                SDL_DestroyTexture(trajectoryTexture);
+                trajectoryTexture = nullptr;
+            }
+
+            destroyTrajectory = false;
+        }
 
         renderFrame();
     }
