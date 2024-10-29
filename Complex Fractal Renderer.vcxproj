@@ -139,6 +139,7 @@
     <ClCompile Include="src\fractals\fractals.cpp" />
     <ClCompile Include="src\fractal_renderer\fractal_renderer.cpp" />
     <ClCompile Include="src\main.cpp" />
+    <ClCompile Include="src\options\resolution_option.hpp" />
     <ClCompile Include="src\utils\io\image.cpp" />
   </ItemGroup>
   <ItemGroup>

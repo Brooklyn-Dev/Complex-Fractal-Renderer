@@ -54,7 +54,8 @@
 
 ## Known issues
 
--   When drawing trajectories at very high iterations, memory consumption increases drastically up to 1.4GB. This is due to SDL line rendering.
+	-   When drawing trajectories at very high iterations, memory consumption increases drastically up to 1.4GB. This is due to SDL line rendering
+	-	You can't save images that are not at 100% resolution
 
 ## Find a bug?
 

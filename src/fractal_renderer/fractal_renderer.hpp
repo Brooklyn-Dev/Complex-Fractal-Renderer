@@ -11,7 +11,8 @@
 #include <SDL2/SDL.h>
 
 #include "../fractals/fractals.hpp"
-#include "../fractals/fractal_option.hpp"
+#include "../options/fractal_option.hpp"
+#include "../options/resolution_option.hpp"
 
 const unsigned int INITIAL_ZOOM = 1;
 const float INITIAL_OFFSET_X = 0.0;
@@ -33,6 +34,7 @@ class FractalRenderer {
         void resetToInitialFractal();
         void setFractalOffset(long double real, long double imag);
         void setZoomLevel(long double zoomPower);
+        void selectResolution(unsigned int resolutionIndex);
         void selectFractal(unsigned int fractalIndex);
 
         void beginAsyncRendering(bool fullRender = false);
@@ -41,6 +43,7 @@ class FractalRenderer {
         void drawFractalInfo();
         void drawFractalControls();
         void drawFractalSelector();
+        void drawRenderingSettings();
         void drawProgressBar();
 
         void renderFrame();
@@ -83,6 +86,9 @@ class FractalRenderer {
         std::vector<unsigned int> pixelDataBuffer;
         std::atomic<unsigned int> renderProgress;
         unsigned int renderMaxProgress;
+
+        std::vector<resolutionOption> resolutionOptions;
+        unsigned int curResolutionIdx;
 
         std::vector<fractalOption> fractalOptions;
         unsigned int curFractalIdx;

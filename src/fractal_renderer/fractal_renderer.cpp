@@ -66,6 +66,7 @@ FractalRenderer::FractalRenderer(unsigned int width, unsigned int height)
     ImGui_ImplSDL2_InitForSDLRenderer(window, renderer);
     ImGui_ImplSDLRenderer2_Init(renderer);
 
+    curFractalIdx = 0;
     fractalOptions = {
         { "Mandelbrot Set", SDLK_1, processMandelbrot, calcTrajectoryMandelbrot },
         { "Tricorn", SDLK_2, processTricorn, calcTrajectoryTricorn },
@@ -73,7 +74,12 @@ FractalRenderer::FractalRenderer(unsigned int width, unsigned int height)
         { "Newton Fractal", SDLK_4, processNewtonFractal, calcTrajectoryNewtonFractal }
     };
 
-    curFractalIdx = 0;
+    curResolutionIdx = 0;
+    resolutionOptions = {
+        { "100%", 1.0f },
+        { "50%", std::sqrt(0.5f) },
+        { "25%", 0.5f }
+    };
 }
 
 FractalRenderer::~FractalRenderer() {
@@ -198,6 +204,9 @@ void FractalRenderer::handleEvents() {
                         resetToInitialFractal();
                     }
                     else if (eventKey == SDLK_s) {
+                        if (curResolutionIdx != 0) // Doesn't work at lower resolutions
+                            break;
+                            
                         // Save snapshot of the window
                         saveTextureAsPNG(renderer, fractalTexture, generatePNGFilename());
                     }
@@ -242,8 +251,6 @@ void FractalRenderer::setWindowSize(unsigned int width, unsigned int height) {
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);
     SDL_RenderPresent(renderer);
-
-    pixelDataBuffer.resize(winWidth * winHeight, 0);
 
     destroyTrajectory = true;
 
@@ -302,6 +309,14 @@ void FractalRenderer::setZoomLevel(long double zoomPower) {
     refreshFractalSize();
 }
 
+void FractalRenderer::selectResolution(unsigned int resolutionIndex) {
+    if (resolutionIndex == curResolutionIdx)
+        return;
+
+    curResolutionIdx = resolutionIndex;
+    beginAsyncRendering();
+}
+
 void FractalRenderer::selectFractal(unsigned int fractalIndex) {
     if (fractalIndex == curFractalIdx)
         return;
@@ -322,49 +337,65 @@ void FractalRenderer::beginAsyncRendering(bool fullRender) {
     }
 
     isRecalculatingFractal = true;
-    renderProgress = 0;
-    renderMaxProgress = winWidth;
 
-    if (fractalTextureBuffer != nullptr)
+    // Calculate render size based off resolution
+    float lengthScaleFactor = resolutionOptions[curResolutionIdx].lengthScaleFactor;
+    unsigned int renderWidth = (int)(winWidth * lengthScaleFactor);
+    unsigned int renderHeight = (int)(winHeight * lengthScaleFactor);
+
+    pixelDataBuffer.resize((unsigned long long int)renderWidth * renderHeight, 0);
+
+    renderProgress = 0;
+    renderMaxProgress = renderWidth;
+
+    // Set up fractal texture buffer
+    if (fractalTextureBuffer)
         SDL_DestroyTexture(fractalTextureBuffer);
 
-    fractalTextureBuffer = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING, winWidth, winHeight);
+    fractalTextureBuffer = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, renderWidth, renderHeight);
+    if (fractalTextureBuffer == nullptr) {
+        SDL_Log("Failed to create texture: %s", SDL_GetError());
+        return;
+    }
 
     auto fractalFuncCopy = fractalOptions[curFractalIdx].func;
 
-    renderingTask = std::async(std::launch::async, [this, fullRender, fractalFuncCopy]() {
+    renderingTask = std::async(std::launch::async, [this, fullRender, fractalFuncCopy, lengthScaleFactor, renderWidth, renderHeight]() {
         int numThreads = std::thread::hardware_concurrency();
         std::vector<std::thread> threads;
-        int sectionWidth = winWidth / numThreads;
+        int sectionWidth = renderWidth / numThreads;
 
-        if (fullRender)
-            curMaxIterations = maxIterations;
-        else
-            curMaxIterations = calculateIterations(numZooms, INITIAL_ITERATIONS, ITERATION_INCREMENT, maxIterations);
+        // Set max iterations based on render mode
+        curMaxIterations = fullRender ? maxIterations : calculateIterations(numZooms, INITIAL_ITERATIONS, ITERATION_INCREMENT, maxIterations);
 
-        SDL_PixelFormat* pixelFormat = SDL_AllocFormat(SDL_PIXELFORMAT_RGBA8888);
+        SDL_PixelFormat* pixelFormat = SDL_AllocFormat(SDL_PIXELFORMAT_RGBA32);
+        if (pixelFormat == nullptr) {
+            SDL_Log("Failed to allocate pixel format: %s", SDL_GetError());
+            return;
+        }
 
         // Create a thread for each vertical slice
         for (int i = 0; i < numThreads; ++i) {
             int startX = i * sectionWidth;
-            int endX = (i == numThreads - 1) ? winWidth : (i + 1) * sectionWidth;
+            int endX = (i == numThreads - 1) ? renderWidth : (i + 1) * sectionWidth;
 
-            threads.emplace_back(std::thread([this, startX, endX, fractalFuncCopy, pixelFormat]() {
+            threads.emplace_back(std::thread([this, startX, endX, fractalFuncCopy, pixelFormat, lengthScaleFactor, renderWidth, renderHeight]() {
                 for (int x = startX; x < endX; x++) {
-                    for (int y = 0; y < winHeight; y++) {
+                    for (int y = 0; y < renderHeight; y++) {
                         if (cancelRender)
                             return;
 
-                        complex c = screenToFractal(x, y, halfWinWidth, halfWinHeight, fractalWidthRatio, fractalHeightRatio, offsetX, offsetY);
+                        complex c = screenToFractal(x / lengthScaleFactor, y / lengthScaleFactor, halfWinWidth, halfWinHeight, fractalWidthRatio, fractalHeightRatio, offsetX, offsetY);
                         colour col = fractalFuncCopy(c, curMaxIterations);
 
                         std::lock_guard<std::mutex> lock(renderMutex);
-                        pixelDataBuffer[(long long int)y * winWidth + x] = SDL_MapRGB(pixelFormat, col.r, col.g, col.b);
+                        if (y < renderHeight && x < renderWidth)
+                            pixelDataBuffer[(unsigned long long int)y * renderWidth + x] = SDL_MapRGB(pixelFormat, col.r, col.g, col.b);
                     }
 
                     renderProgress++;
                 }
-                }));
+            }));
         }
 
         // Wait for all threads to finish
@@ -380,15 +411,19 @@ void FractalRenderer::beginAsyncRendering(bool fullRender) {
         // Update fractal texture
         {
             std::lock_guard<std::mutex> lock(renderMutex);
+
             void* pixels;
             int pitch;
-            SDL_LockTexture(fractalTextureBuffer, nullptr, &pixels, &pitch);
-            memcpy(pixels, pixelDataBuffer.data(), pixelDataBuffer.size() * sizeof(unsigned int));
-            SDL_UnlockTexture(fractalTextureBuffer);
-        }
 
-        {
-            std::lock_guard<std::mutex> lock(renderMutex);
+            if (SDL_LockTexture(fractalTextureBuffer, nullptr, &pixels, &pitch) < 0) {
+                SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Couldn't lock fractal texture buffer: %s", SDL_GetError());
+                return;
+            }
+
+            memcpy(pixels, pixelDataBuffer.data(), pixelDataBuffer.size() * sizeof(unsigned int));
+
+            SDL_UnlockTexture(fractalTextureBuffer);
+
             std::swap(fractalTexture, fractalTextureBuffer);
         }
 
@@ -552,7 +587,7 @@ void FractalRenderer::drawFractalControls() {
     ImGui::End();
 }
 
-void  FractalRenderer::drawFractalSelector() {
+void FractalRenderer::drawFractalSelector() {
     ImGuiWindowFlags windowFlags =
         ImGuiWindowFlags_AlwaysAutoResize |
         ImGuiWindowFlags_NoSavedSettings |
@@ -563,11 +598,42 @@ void  FractalRenderer::drawFractalSelector() {
 
     ImGui::Begin("Fractal Selector", nullptr, windowFlags);
 
+    ImGui::SetNextItemWidth(160);
     if (ImGui::BeginCombo("##Select Fractal", fractalOptions[curFractalIdx].name.c_str())) {
         for (int i = 0; i < fractalOptions.size(); i++) {
             bool isSelected = curFractalIdx == i;
             if (ImGui::Selectable(fractalOptions[i].name.c_str(), isSelected))
                 selectFractal(i);    
+
+            if (isSelected) ImGui::SetItemDefaultFocus();
+        }
+        ImGui::EndCombo();
+    }
+
+    ImGui::End();
+}
+
+void FractalRenderer::drawRenderingSettings() {
+    ImGuiWindowFlags windowFlags =
+        ImGuiWindowFlags_AlwaysAutoResize |
+        ImGuiWindowFlags_NoSavedSettings |
+        ImGuiWindowFlags_NoFocusOnAppearing |
+        ImGuiWindowFlags_NoNav;
+
+    ImGui::SetNextWindowPos(ImVec2(548, 10), ImGuiCond_Once);
+
+    ImGui::Begin("Rendering Settings", nullptr, windowFlags);
+
+    ImGui::Text("Resolution");
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(64);
+    if (ImGui::BeginCombo("##Resolution", resolutionOptions[curResolutionIdx].name.c_str())) {
+        for (int i = 0; i < resolutionOptions.size(); i++) {
+            bool isSelected = curResolutionIdx == i;
+            if (ImGui::Selectable(resolutionOptions[i].name.c_str(), isSelected))
+                selectResolution(i);
+
+            if (isSelected) ImGui::SetItemDefaultFocus();
         }
         ImGui::EndCombo();
     }
@@ -582,7 +648,7 @@ void  FractalRenderer::drawProgressBar() {
         ImGuiWindowFlags_NoFocusOnAppearing |
         ImGuiWindowFlags_NoNav;
 
-    ImGui::SetNextWindowPos(ImVec2(598, 10), ImGuiCond_Once);
+    ImGui::SetNextWindowPos(ImVec2(712, 10), ImGuiCond_Once);
 
     ImGui::Begin("Render Progress", nullptr, windowFlags);
     float progress = static_cast<float>(renderProgress) / renderMaxProgress;
@@ -608,6 +674,7 @@ void FractalRenderer::renderFrame() {
         drawFractalInfo();
         drawFractalControls();
         drawFractalSelector();
+        drawRenderingSettings();
         drawProgressBar();
 
         ImGui::Render();
@@ -618,8 +685,6 @@ void FractalRenderer::renderFrame() {
 }
 
 void FractalRenderer::run() {
-    pixelDataBuffer.resize(winWidth * winHeight, 0);
-
     beginAsyncRendering();
 
     while (running) {

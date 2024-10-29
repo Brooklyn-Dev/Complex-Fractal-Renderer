@@ -33,6 +33,9 @@
     <ClCompile Include="src\utils\io\image.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\options\resolution_option.hpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\complex\complex.hpp">
