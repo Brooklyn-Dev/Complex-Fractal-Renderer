@@ -30,7 +30,7 @@
     <ClCompile Include="src\fractal_renderer\fractal_renderer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\utils\math.cpp">
+    <ClCompile Include="src\utils\io\image.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

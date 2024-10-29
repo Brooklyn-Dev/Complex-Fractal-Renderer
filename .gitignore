@@ -365,3 +365,4 @@ FodyWeavers.xsd
 # Other
 imgui.ini
 vcpkg_installed/
+saved_images/

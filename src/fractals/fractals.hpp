@@ -21,7 +21,7 @@ std::pair<double, double> fractalToScreen(
 	double offsetX, double offsetY
 );
 
-int calculateIterations(unsigned int numZooms, unsigned int initialIterations, unsigned int iterationIncrement);
+int calculateIterations(unsigned int numZooms, unsigned int initialIterations, unsigned int iterationIncrement, unsigned int maxIterations);
 bool checkPeriodicity(const complex& z, const complex& prevZ);
 
 colour processMandelbrot(complex c, unsigned int maxIterations);

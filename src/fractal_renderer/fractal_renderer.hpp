@@ -16,6 +16,7 @@
 const unsigned int INITIAL_ZOOM = 1;
 const float INITIAL_OFFSET_X = 0.0;
 const float INITIAL_OFFSET_Y = 0.0;
+const unsigned int INITIAL_MAX_ITERATIONS = 5000;
 
 class FractalRenderer {
     public:
@@ -27,21 +28,24 @@ class FractalRenderer {
     private:
         void handleEvents();
 
-        void setWinSize(unsigned int width, unsigned int height);
-        void updateFractalSize();
-        void resetFractal();
-        void setOffset(long double real, long double imag);
-        void setZoom(long double zoomPower);
-        void setFractal(unsigned int fractalIndex);
+        void setWindowSize(unsigned int width, unsigned int height);
+        void refreshFractalSize();
+        void resetToInitialFractal();
+        void setFractalOffset(long double real, long double imag);
+        void setZoomLevel(long double zoomPower);
+        void selectFractal(unsigned int fractalIndex);
 
-        void startAsyncRendering();
-        void renderTrajectory(std::vector<complex> trajectoryPoints);
+        void beginAsyncRendering(bool fullRender = false);
+        void drawTrajectory(const std::vector<complex>& trajectoryPoints);
+
+        void drawFractalInfo();
+        void drawFractalControls();
+        void drawFractalSelector();
+        void drawProgressBar();
+
         void renderFrame();
 
-        void renderFractalInfo();
-        void renderFractalControls();
-        void renderFractalSelector();
-        void renderProgressBar();
+        std::string generatePNGFilename();
 
         unsigned int winWidth;
         unsigned int winHeight;
@@ -61,6 +65,7 @@ class FractalRenderer {
         long double numZooms = 0.0;
         long double offsetX = INITIAL_OFFSET_X;
         long double offsetY = INITIAL_OFFSET_Y;
+        unsigned int maxIterations = INITIAL_MAX_ITERATIONS;
         unsigned int curMaxIterations;
 
         SDL_Texture* trajectoryTexture = nullptr;

@@ -8,7 +8,9 @@
 -   Right Mouse - Click to see the trajectory of a point
 -   Scroll Wheel - Zoom in and out
 -   TAB - Toggle UI
--   R - Reset view
+-   F - Full-render the current fractal at the set max iterations
+-   R - Reset zoom and offset
+-   S - Save PNG snapshot of the window
 -   1 - Mandelbrot set
 -   2 - Tricorn / Mandelbar set
 -   3 - Burning Ship fractal
@@ -49,6 +51,10 @@
 ### Roots
 
 ![Netwon fractal roots](img/newton-fractal-roots.png)
+
+## Known issues
+
+-   When drawing trajectories at very high iterations, memory consumption increases drastically up to 1.4GB. This is due to SDL line rendering.
 
 ## Find a bug?
 

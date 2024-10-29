@@ -42,8 +42,8 @@ std::pair<double, double> fractalToScreen(
     return std::make_pair(px, py);
 }
 
-int calculateIterations(unsigned int numZooms, unsigned int initialIterations, unsigned int iterationIncrement) {
-    return numZooms * iterationIncrement + initialIterations;
+int calculateIterations(unsigned int numZooms, unsigned int initialIterations, unsigned int iterationIncrement, unsigned int maxIterations) {
+    return std::clamp<unsigned int>(numZooms * iterationIncrement + initialIterations, 1, maxIterations);
 }
 
 bool checkPeriodicity(const complex& z, const complex& prevZ) {
