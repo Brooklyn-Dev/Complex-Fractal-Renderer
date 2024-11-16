@@ -7,33 +7,33 @@
 #include "../complex/complex.hpp"
 #include "../colour/colour.hpp"
 
-complex screenToFractal(
+Complex screenToFractal(
 	unsigned int px, unsigned int py,
 	float halfWinWidth, float halfWinHeight,
 	double fractalWidthRatio, double fractalHeightRatio,
-	double offsetX, double offsetY
+	long double offsetX, long double offsetY
 );
 
-std::pair<double, double> fractalToScreen(
-	complex z,
+std::pair<unsigned int, unsigned int> fractalToScreen(
+	Complex z,
 	float halfWinWidth, float halfWinHeight,
 	double fractalWidthRatio, double fractalHeightRatio,
-	double offsetX, double offsetY
+	long double offsetX, long double offsetY
 );
 
 int calculateIterations(unsigned int numZooms, unsigned int initialIterations, unsigned int iterationIncrement, unsigned int maxIterations);
-bool checkPeriodicity(const complex& z, const complex& prevZ);
+bool checkPeriodicity(const Complex& z, const Complex& prevZ);
 
-colour processMandelbrot(complex c, unsigned int maxIterations);
-std::vector<complex> calcTrajectoryMandelbrot(complex c, unsigned int maxIterations);
+colour processMandelbrot(Complex c, unsigned int maxIterations);
+std::vector<Complex> calcTrajectoryMandelbrot(Complex c, unsigned int maxIterations);
 
-colour processTricorn(complex c, unsigned int maxIterations);
-std::vector<complex> calcTrajectoryTricorn(complex c, unsigned int maxIterations);
+colour processTricorn(Complex c, unsigned int maxIterations);
+std::vector<Complex> calcTrajectoryTricorn(Complex c, unsigned int maxIterations);
 
-colour processBurningShip(complex c, unsigned int maxIterations);
-std::vector<complex> calcTrajectoryBurningShip(complex c, unsigned int maxIterations);
+colour processBurningShip(Complex c, unsigned int maxIterations);
+std::vector<Complex> calcTrajectoryBurningShip(Complex c, unsigned int maxIterations);
 
-colour processNewtonFractal(complex z, unsigned int maxIterations);
-std::vector<complex> calcTrajectoryNewtonFractal(complex z, unsigned int maxIterations);
+colour processNewtonFractal(Complex z, unsigned int maxIterations);
+std::vector<Complex> calcTrajectoryNewtonFractal(Complex z, unsigned int maxIterations);
 
 #endif

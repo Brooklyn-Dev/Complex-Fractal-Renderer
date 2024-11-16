@@ -3,7 +3,7 @@
 
 #include <string>
 
-typedef struct resolutionOption {
+struct resolutionOption {
     std::string name;
     float lengthScaleFactor;
 };

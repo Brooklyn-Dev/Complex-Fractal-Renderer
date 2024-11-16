@@ -32,8 +32,17 @@ const unsigned int MAX_ITERATIONS_LIMIT = 10000;
 
 const std::string IMAGE_PATH = "./saved_images";
 
+const ImGuiWindowFlags BASE_WINDOW_FLAGS =
+ImGuiWindowFlags_AlwaysAutoResize |
+ImGuiWindowFlags_NoSavedSettings |
+ImGuiWindowFlags_NoFocusOnAppearing |
+ImGuiWindowFlags_NoNav;
+
 FractalRenderer::FractalRenderer(unsigned int width, unsigned int height)
-    : winWidth(width), winHeight(height), halfWinWidth(width / 2.0), halfWinHeight(height / 2.0)
+    : winWidth(width), winHeight(height),
+    halfWinWidth(width / 2.0), halfWinHeight(height / 2.0),
+    isRecalculatingFractal(false),
+    cancelRender(false)
 {
     // Setup SDL
     if (SDL_Init(SDL_INIT_VIDEO)) {
@@ -78,7 +87,9 @@ FractalRenderer::FractalRenderer(unsigned int width, unsigned int height)
     resolutionOptions = {
         { "100%", 1.0f },
         { "50%", std::sqrt(0.5f) },
-        { "25%", 0.5f }
+        { "25%", 0.5f },
+        { "12.5%", std::sqrt(0.125f) },
+        { "6.25%", 0.25f },
     };
 }
 
@@ -146,8 +157,8 @@ void FractalRenderer::handleEvents() {
                     // Set centre of screen at the point clicked
                     SDL_GetMouseState(&mx, &my);
 
-                    complex c = screenToFractal(mx, my, halfWinWidth, halfWinHeight, fractalWidthRatio, fractalHeightRatio, offsetX, offsetY);
-                    setFractalOffset(c.re, c.im);
+                    Complex c = screenToFractal(mx, my, halfWinWidth, halfWinHeight, fractalWidthRatio, fractalHeightRatio, offsetX, offsetY);
+                    setFractalOffset((long double)c.real(), (long double)c.imag());
 
                     beginAsyncRendering();
                 }
@@ -158,10 +169,10 @@ void FractalRenderer::handleEvents() {
                     // Render the trajectory of the point clicked
                     SDL_GetMouseState(&mx, &my);
 
-                    complex c = screenToFractal(mx, my, halfWinWidth, halfWinHeight, fractalWidthRatio, fractalHeightRatio, offsetX, offsetY);
+                    Complex c = screenToFractal(mx, my, halfWinWidth, halfWinHeight, fractalWidthRatio, fractalHeightRatio, offsetX, offsetY);
 
                     auto trajectoryFuncCopy = fractalOptions[curFractalIdx].trajectoryFunc;
-                    std::vector<complex> trajectoryPoints = trajectoryFuncCopy(c, curMaxIterations);
+                    std::vector<Complex> trajectoryPoints = trajectoryFuncCopy(c, curMaxIterations);
                     drawTrajectory(trajectoryPoints);
                 }
                 break;
@@ -208,7 +219,8 @@ void FractalRenderer::handleEvents() {
                             break;
                             
                         // Save snapshot of the window
-                        saveTextureAsPNG(renderer, fractalTexture, generatePNGFilename());
+                        std::string filename = generatePNGFilename();
+                        saveTextureAsPNG(renderer, fractalTexture, filename);
                     }
                     else {
                         for (int i = 0; i < fractalOptions.size(); i++)
@@ -385,7 +397,7 @@ void FractalRenderer::beginAsyncRendering(bool fullRender) {
                         if (cancelRender)
                             return;
 
-                        complex c = screenToFractal(x / lengthScaleFactor, y / lengthScaleFactor, halfWinWidth, halfWinHeight, fractalWidthRatio, fractalHeightRatio, offsetX, offsetY);
+                        Complex c = screenToFractal(x / lengthScaleFactor, y / lengthScaleFactor, halfWinWidth, halfWinHeight, fractalWidthRatio, fractalHeightRatio, offsetX, offsetY);
                         colour col = fractalFuncCopy(c, curMaxIterations);
 
                         std::lock_guard<std::mutex> lock(renderMutex);
@@ -431,7 +443,7 @@ void FractalRenderer::beginAsyncRendering(bool fullRender) {
     });
 }
 
-void FractalRenderer::drawTrajectory(const std::vector<complex>& trajectoryPoints) {
+void FractalRenderer::drawTrajectory(const std::vector<Complex>& trajectoryPoints) {
     if (trajectoryPoints.empty())
         return;
 
@@ -497,7 +509,7 @@ void FractalRenderer::drawTrajectory(const std::vector<complex>& trajectoryPoint
         SDL_RenderFillRect(renderer, &rect);
 
     // Render start point
-    SDL_Rect startRect = { startX - halfPointSize, startY - halfPointSize, pointSize, pointSize };
+    SDL_Rect startRect = { static_cast<int>(startX - halfPointSize), static_cast<int>(startY - halfPointSize), pointSize, pointSize };
     SDL_RenderFillRect(renderer, &startRect);
 
     SDL_SetRenderTarget(renderer, nullptr);
@@ -505,10 +517,6 @@ void FractalRenderer::drawTrajectory(const std::vector<complex>& trajectoryPoint
 }
 
 void FractalRenderer::drawFractalInfo() {
-    ImGuiWindowFlags windowFlags = 
-        ImGuiWindowFlags_AlwaysAutoResize |
-        ImGuiWindowFlags_NoSavedSettings |
-        ImGuiWindowFlags_NoFocusOnAppearing |
         ImGuiWindowFlags_NoNav;
 
     ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_Once);
@@ -588,15 +596,9 @@ void FractalRenderer::drawFractalControls() {
 }
 
 void FractalRenderer::drawFractalSelector() {
-    ImGuiWindowFlags windowFlags =
-        ImGuiWindowFlags_AlwaysAutoResize |
-        ImGuiWindowFlags_NoSavedSettings |
-        ImGuiWindowFlags_NoFocusOnAppearing |
-        ImGuiWindowFlags_NoNav;
-
     ImGui::SetNextWindowPos(ImVec2(366, 10), ImGuiCond_Once);
 
-    ImGui::Begin("Fractal Selector", nullptr, windowFlags);
+    ImGui::Begin("Fractal Selector", nullptr, BASE_WINDOW_FLAGS);
 
     ImGui::SetNextItemWidth(160);
     if (ImGui::BeginCombo("##Select Fractal", fractalOptions[curFractalIdx].name.c_str())) {
@@ -614,15 +616,9 @@ void FractalRenderer::drawFractalSelector() {
 }
 
 void FractalRenderer::drawRenderingSettings() {
-    ImGuiWindowFlags windowFlags =
-        ImGuiWindowFlags_AlwaysAutoResize |
-        ImGuiWindowFlags_NoSavedSettings |
-        ImGuiWindowFlags_NoFocusOnAppearing |
-        ImGuiWindowFlags_NoNav;
-
     ImGui::SetNextWindowPos(ImVec2(548, 10), ImGuiCond_Once);
 
-    ImGui::Begin("Rendering Settings", nullptr, windowFlags);
+    ImGui::Begin("Rendering Settings", nullptr, BASE_WINDOW_FLAGS);
 
     ImGui::Text("Resolution");
     ImGui::SameLine();
@@ -642,15 +638,9 @@ void FractalRenderer::drawRenderingSettings() {
 }
 
 void  FractalRenderer::drawProgressBar() {
-    ImGuiWindowFlags windowFlags =
-        ImGuiWindowFlags_AlwaysAutoResize |
-        ImGuiWindowFlags_NoSavedSettings |
-        ImGuiWindowFlags_NoFocusOnAppearing |
-        ImGuiWindowFlags_NoNav;
-
     ImGui::SetNextWindowPos(ImVec2(712, 10), ImGuiCond_Once);
 
-    ImGui::Begin("Render Progress", nullptr, windowFlags);
+    ImGui::Begin("Render Progress", nullptr, BASE_WINDOW_FLAGS);
     float progress = static_cast<float>(renderProgress) / renderMaxProgress;
     ImGui::ProgressBar(progress, ImVec2(0.0f, 0.0f), progress == 1.0f ? "Finished" : "Rendering...");
     ImGui::End();

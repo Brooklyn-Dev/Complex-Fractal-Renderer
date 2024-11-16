@@ -7,10 +7,10 @@ const unsigned int PERIODICITY_ITERATION = 20;
 const float PERIODICITY_EPSILON = 1e-8;
 
 const float NEWTON_FRACTAL_EPSILON = 1e-6;
-const complex NEWTON_FRACTAL_ROOTS[3] = {
-    complex{ 1, 0 },
-    complex{ -0.5, sqrt(3) / 2 },
-    complex{ -0.5, -sqrt(3) / 2 },
+const Complex NEWTON_FRACTAL_ROOTS[3] = {
+    Complex(1.0),
+    Complex(-0.5, sqrt(3) / 2),
+    Complex(-0.5, -sqrt(3) / 2 ),
 };
 const colour NEWTON_FRACTAL_COLOURS[3] = {
     colour{ 255, 0, 0 },
@@ -18,26 +18,26 @@ const colour NEWTON_FRACTAL_COLOURS[3] = {
     colour{ 0, 0, 255 },
 };
 
-complex screenToFractal(
+Complex screenToFractal(
     unsigned int px, unsigned int py,
     float halfWinWidth, float halfWinHeight,
     double fractalWidthRatio, double fractalHeightRatio,
-    double offsetX, double offsetY
+    long double offsetX, long double offsetY
 ) {
-    double real = (px - halfWinWidth) * fractalWidthRatio + offsetX;
-    double imag = (halfWinHeight - py) * fractalHeightRatio + offsetY;
+    long double real = (px - halfWinWidth) * fractalWidthRatio + offsetX;
+    long double imag = (halfWinHeight - py) * fractalHeightRatio + offsetY;
 
-    return complex{ real, imag };
+    return Complex(real, imag);
 }
 
-std::pair<double, double> fractalToScreen(
-    complex z,
+std::pair<unsigned int, unsigned int> fractalToScreen(
+    Complex z,
     float halfWinWidth, float halfWinHeight,
     double fractalWidthRatio, double fractalHeightRatio,
-    double offsetX, double offsetY
+    long double offsetX, long double offsetY
 ) {
-    double px = (z.re - offsetX) / fractalWidthRatio + halfWinWidth;
-    double py = (offsetY - z.im) / fractalHeightRatio + halfWinHeight;
+    unsigned int px = (z.real() - offsetX) / fractalWidthRatio + halfWinWidth;
+    unsigned int py = (-z.imag() + offsetY) / fractalHeightRatio + halfWinHeight;
 
     return std::make_pair(px, py);
 }
@@ -46,38 +46,38 @@ int calculateIterations(unsigned int numZooms, unsigned int initialIterations, u
     return std::clamp<unsigned int>(numZooms * iterationIncrement + initialIterations, 1, maxIterations);
 }
 
-bool checkPeriodicity(const complex& z, const complex& prevZ) {
-    double deltaMagSq = complexMagSq(z - prevZ);
+bool checkPeriodicity(const Complex& z, const Complex& prevZ) {
+    long double deltaMagSq = Complex::magSq(z - prevZ);
 
     // Approximate the angle difference
-    double dot = z.re * prevZ.re + z.im * prevZ.im;
-    double cross = z.re * prevZ.im - z.im * prevZ.re;
+    long double dot = z.real() * prevZ.real() + z.imag() * prevZ.imag();
+    long double cross = z.real() * prevZ.imag() - z.imag() * prevZ.real();
 
     // Check if the magnitude and the angle are nearly the same
     return deltaMagSq < PERIODICITY_EPSILON && fabs(dot - 1) < PERIODICITY_EPSILON && fabs(cross) < PERIODICITY_EPSILON;
 }
 
-colour processMandelbrot(complex c, unsigned int maxIterations) {
+colour processMandelbrot(Complex c, unsigned int maxIterations) {
     // Check if inside main cardioid
-    double reMinusQuarter = c.re - 0.25;
-    double imSquared = c.im * c.im;
-    double q = reMinusQuarter * reMinusQuarter + imSquared; 
+    long double reMinusQuarter = c.real() - 0.25;
+    long double imSquared = c.imag() * c.imag();
+    long double q = reMinusQuarter * reMinusQuarter + imSquared;
     if (q * (q + reMinusQuarter) <= 0.25 * imSquared)
         return BLACK;
 
     // Check if inside period-2 bulb
-    double rePlusOne = c.re + 1.0;
+    long double rePlusOne = c.real() + 1.0;
     if (rePlusOne * rePlusOne + imSquared <= 0.0625)
         return BLACK;
 
-    complex z = { 0, 0 }; // z_0 = 0
-    complex prevZ = z;
+    Complex z = Complex(); // z_0 = 0
+    Complex prevZ = z;
 
     for (int i = 0; i < maxIterations; i++) {
         z = z * z + c; // z_n+1 = z_n^2 + c
 
         // Escape condition
-        if (complexMagSq(z) > 4.0) 
+        if (Complex::magSq(z) > 4.0)
             return colourGradient(i, maxIterations);
 
         // Periodicity check
@@ -92,31 +92,31 @@ colour processMandelbrot(complex c, unsigned int maxIterations) {
     return BLACK;
 }
 
-std::vector<complex> calcTrajectoryMandelbrot(complex c, unsigned int maxIterations) {
-    std::vector<complex> trajectory;
-    complex z = { 0, 0 };
+std::vector<Complex> calcTrajectoryMandelbrot(Complex c, unsigned int maxIterations) {
+    std::vector<Complex> trajectory;
+    Complex z = Complex();
 
     for (int i = 0; i < maxIterations; i++) {
         z = z * z + c;
         trajectory.push_back(z);
 
-        if (complexMagSq(z) > 4.0)
+        if (Complex::magSq(z) > 4.0)
             break;
     }
 
     return trajectory;
 }
 
-colour processTricorn(complex c, unsigned int maxIterations) {
-    complex z = { 0, 0 }; // z_0 = 0
-    complex prevZ = z;
+colour processTricorn(Complex c, unsigned int maxIterations) {
+    Complex z = Complex(); // z_0 = 0
+    Complex prevZ = z;
 
     for (int i = 0; i < maxIterations; i++) {
-        complex zConj = complexConj(z);
+        Complex zConj = Complex::conj(z);
         z = zConj * zConj + c; // z_n+1 = Conj(z)_n^2 + c
 
         // Escape condition
-        if (complexMagSq(z) > 4.0)
+        if (Complex::magSq(z) > 4.0)
             return colourGradient(i, maxIterations);
 
         // Periodicity check
@@ -131,33 +131,35 @@ colour processTricorn(complex c, unsigned int maxIterations) {
     return BLACK;
 }
 
-std::vector<complex> calcTrajectoryTricorn(complex c, unsigned int maxIterations) {
-    std::vector<complex> trajectory;
-    complex z = { 0, 0 };
+std::vector<Complex> calcTrajectoryTricorn(Complex c, unsigned int maxIterations) {
+    std::vector<Complex> trajectory;
+    Complex z = Complex();
 
     for (int i = 0; i < maxIterations; i++) {
-        complex zConj = complexConj(z);
+        Complex zConj = Complex::conj(z);
         z = zConj * zConj + c;
         trajectory.push_back(z);
 
-        if (complexMagSq(z) > 4.0)
+        if (Complex::magSq(z) > 4.0)
             break;
     }
 
     return trajectory;
 }
 
-colour processBurningShip(complex c, unsigned int maxIterations) {
-    complex z = { 0, 0 }; // z_0 = 0
-    complex prevZ = z;
+colour processBurningShip(Complex c, unsigned int maxIterations) {
+    Complex z = Complex(); // z_0 = 0
+    Complex prevZ = z;
 
-    c = complexConj(c); // Reflect in real axis
+    c = Complex::conj(c); // Reflect in real axis
 
     for (int i = 0; i < maxIterations; i++) {
-        z = complex{ fabs(z.re), fabs(z.im) } * complex{ fabs(z.re), fabs(z.im) } + c; // z_n+1 = (|Re(z_n)| + i|Im(z_n)|)^2 + c
+        long double absReal = abs(z.real());
+        long double absImag = abs(z.imag());
+        z = Complex(absReal, absImag) * Complex(absReal, absImag) + c; // z_n+1 = (|Re(z_n)| + i|Im(z_n)|)^2 + c
 
         // Escape condition
-        if (complexMagSq(z) > 4.0)
+        if (Complex::magSq(z) > 4.0)
             return colourGradient(i, maxIterations);
 
         // Periodicity check
@@ -172,37 +174,40 @@ colour processBurningShip(complex c, unsigned int maxIterations) {
     return BLACK;
 }
 
-std::vector<complex> calcTrajectoryBurningShip(complex c, unsigned int maxIterations) {
-    std::vector<complex> trajectory;
-    complex z = { 0, 0 };
+std::vector<Complex> calcTrajectoryBurningShip(Complex c, unsigned int maxIterations) {
+    std::vector<Complex> trajectory;
+    Complex z = Complex();
 
-    c = complexConj(c);
+    c = Complex::conj(c);
 
-    for (int i = 0; i < maxIterations; i++) { 
-        z = complex{ fabs(z.re), fabs(z.im) } * complex{ fabs(z.re), fabs(z.im) } + c;
-        trajectory.push_back(complexConj(z));
+    for (int i = 0; i < maxIterations; i++) {
+        long double absReal = abs(z.real());
+        long double absImag = abs(z.imag());
+        z = Complex(absReal, absImag) * Complex(absReal, absImag) + c;
 
-        if (complexMagSq(z) > 4.0)
+        trajectory.push_back(Complex::conj(z));
+
+        if (Complex::magSq(z) > 4.0)
             break;
     }
 
     return trajectory;
 }
 
-colour processNewtonFractal(complex z, unsigned int maxIterations) {
+colour processNewtonFractal(Complex z, unsigned int maxIterations) {
     for (int i = 0; i < maxIterations; i++) {
-        complex zSquared = z * z; // z^2
-        complex zCubed = zSquared * z; // z^3
-        complex fz = zCubed - 1; // f(z) = z^3 - 1
-        complex fzPrime = zSquared * 3; // f'(z) = 3z^2
+        Complex zSquared = z * z; // z^2
+        Complex zCubed = zSquared * z; // z^3
+        Complex fz = zCubed - 1.0; // f(z) = z^3 - 1
+        Complex fzPrime = zSquared * 3.0; // f'(z) = 3z^2
 
         z -= fz / fzPrime; // z_n+1 = z_n - f(z) / f'(z)
 
         // Assign colour based on which root z converges to
         for (int j = 0; j < 3; j++)
         {
-            complex diff = z - NEWTON_FRACTAL_ROOTS[j];
-            if (fabs(diff.re) < NEWTON_FRACTAL_EPSILON && fabs(diff.im) < NEWTON_FRACTAL_EPSILON)
+            Complex diff = z - NEWTON_FRACTAL_ROOTS[j];
+            if (abs(diff.real()) < NEWTON_FRACTAL_EPSILON && abs(diff.imag()) < NEWTON_FRACTAL_EPSILON)
                 return NEWTON_FRACTAL_COLOURS[j];
         };
     }
@@ -210,18 +215,18 @@ colour processNewtonFractal(complex z, unsigned int maxIterations) {
     return BLACK;
 }
 
-std::vector<complex> calcTrajectoryNewtonFractal(complex z, unsigned int maxIterations) {
-    std::vector<complex> trajectory;
+std::vector<Complex> calcTrajectoryNewtonFractal(Complex z, unsigned int maxIterations) {
+    std::vector<Complex> trajectory;
 
     for (int i = 0; i < maxIterations; i++) {
         trajectory.push_back(z);
 
-        complex zSquared = z * z;
-        complex zCubed = zSquared * z;
-        complex fz = zCubed - 1;
-        complex fzPrime = zSquared * 3;
+        Complex zSquared = z * z;
+        Complex zCubed = zSquared * z;
+        Complex fz = zCubed - 1.0;
+        Complex fzPrime = zSquared * 3.0;
 
-        if (complexMagSq(fz) < NEWTON_FRACTAL_EPSILON)
+        if (Complex::magSq(fz) < NEWTON_FRACTAL_EPSILON)
             break;
 
         z = z - fz / fzPrime;

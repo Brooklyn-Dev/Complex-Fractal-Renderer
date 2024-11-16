@@ -6,11 +6,11 @@
 #include "../complex/complex.hpp"
 #include "../colour/colour.hpp"
 
-typedef struct fractalOption {
+struct fractalOption {
     std::string name;
     SDL_Keycode key;
-    std::function<colour(complex, int)> func;
-    std::function<std::vector<complex>(complex, int)> trajectoryFunc;
+    std::function<colour(Complex, unsigned int)> func;
+    std::function<std::vector<Complex>(Complex, unsigned int)> trajectoryFunc;
 };
 
 #endif

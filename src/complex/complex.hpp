@@ -1,41 +1,49 @@
 #ifndef COMPLEX_H
 #define COMPLEX_H
 
-#include <math.h>
+class Complex {
+    private:
+        long double re;
+        long double im;
 
-typedef struct complex {
-    long double re;
-    long double im;
+    public:
+        // Constructors
+        Complex();
+        Complex(const long double& value);
+        Complex(const long double& real, const long double& imag);
 
-    complex operator+(const complex& w) const;
-    complex& operator+=(const complex& w);
+        // Getters
+        long double real() const;
+        long double imag() const;
 
-    complex operator-(const complex& w) const;
-    complex& operator-=(const complex& w);
+        // Complex arithmetic operators
+        Complex operator+(const Complex& w) const;
+        Complex operator-(const Complex& w) const;
+        Complex operator*(const Complex& w) const;
+        Complex operator/(const Complex& w) const;
 
-    complex operator*(const complex& w) const;
-    complex& operator*=(const complex& w);
+        // Complex compound assignment operators
+        Complex& operator+=(const Complex& w);
+        Complex& operator-=(const Complex& w);
+        Complex& operator*=(const Complex& w);
+        Complex& operator/=(const Complex& w);
 
-    complex operator/(const complex& w) const;
-    complex& operator/=(const complex& w);
+        // Scalar arithmetic operators
+        Complex operator+(long double scalar) const;
+        Complex operator-(long double scalar) const;
+        Complex operator*(long double scalar) const;
+        Complex operator/(long double scalar) const;
 
-    complex operator+(long double scalar) const;
-    complex& operator+=(long double scalar);
+        // Scalar compound assignment operators
+        Complex& operator+=(long double scalar);
+        Complex& operator-=(long double scalar);
+        Complex& operator*=(long double scalar);
+        Complex& operator/=(long double scalar);
 
-    complex operator-(long double scalar) const;
-    complex& operator-=(long double scalar);
-
-    complex operator*(long double scalar) const;
-    complex& operator*=(long double scalar);
-
-    complex operator/(long double scalar) const;
-    complex& operator/=(long double scalar);
+        // Mathmatical operations
+        static Complex conj(const Complex& z);
+        static long double mag(const Complex& z);
+        static long double magSq(const Complex& z);
 };
-
-complex complexConj(const complex& z);
-long double complexMag(const complex& z);
-long double complexMagSq(const complex& z);
-
-const complex I = complex{ 0, 1 };
 
 #endif

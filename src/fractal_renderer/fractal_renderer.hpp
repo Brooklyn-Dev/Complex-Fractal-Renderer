@@ -10,6 +10,7 @@
 
 #include <SDL2/SDL.h>
 
+#include "../complex/complex.hpp"
 #include "../fractals/fractals.hpp"
 #include "../options/fractal_option.hpp"
 #include "../options/resolution_option.hpp"
@@ -38,7 +39,7 @@ class FractalRenderer {
         void selectFractal(unsigned int fractalIndex);
 
         void beginAsyncRendering(bool fullRender = false);
-        void drawTrajectory(const std::vector<complex>& trajectoryPoints);
+        void drawTrajectory(const std::vector<Complex>& trajectoryPoints);
 
         void drawFractalInfo();
         void drawFractalControls();
@@ -64,7 +65,7 @@ class FractalRenderer {
         SDL_Texture* fractalTexture = nullptr;
         SDL_Texture* fractalTextureBuffer = nullptr;
 
-        double zoom = INITIAL_ZOOM;
+        long double zoom = INITIAL_ZOOM;
         long double numZooms = 0.0;
         long double offsetX = INITIAL_OFFSET_X;
         long double offsetY = INITIAL_OFFSET_Y;
@@ -79,8 +80,8 @@ class FractalRenderer {
         bool running = true;
         bool uiVisible = true;
 
-        std::atomic<bool> isRecalculatingFractal = false;
-        std::atomic<bool> cancelRender = false;
+        std::atomic<bool> isRecalculatingFractal;
+        std::atomic<bool> cancelRender;
         std::future<void> renderingTask;
         std::mutex renderMutex;
         std::vector<unsigned int> pixelDataBuffer;
